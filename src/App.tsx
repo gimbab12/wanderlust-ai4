@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plane, Compass, Sparkles, LogIn, LogOut, Loader2, MapPin, MessageSquare, Star, Globe } from 'lucide-react';
-import { auth, db } from './lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { Plane, Compass, Sparkles, Loader2, MapPin, MessageSquare, Star, Globe } from 'lucide-react';
+import { db } from './lib/firebase';
 import { collection, addDoc, query, onSnapshot, orderBy } from 'firebase/firestore';
 import ReactMarkdown from 'react-markdown';
 import { TravelProfile, Review, Language } from './types';
 import { translations } from './i18n';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
   const [lang, setLang] = useState<Language>('ko');
   const t = translations[lang];
 
@@ -27,21 +25,9 @@ export default function App() {
   const [recommendation, setRecommendation] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [newReview, setNewReview] = useState({ destination: '', comment: '', rating: 5 });
-
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<'signIn' | 'signUp'>('signIn');
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [name, setName] = useState<string>('');
-  const [authError, setAuthError] = useState<string>('');
-  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [newReview, setNewReview] = useState({ userName: '', destination: '', comment: '', rating: 5 });
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-
     const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
     const unsubscribeReviews = onSnapshot(q, (snapshot) => {
       const revs: Review[] = [];
@@ -52,7 +38,6 @@ export default function App() {
     });
 
     return () => {
-      unsubscribeAuth();
       unsubscribeReviews();
     };
   }, []);
@@ -61,65 +46,6 @@ export default function App() {
     const newLang = e.target.value as Language;
     setLang(newLang);
     setProfile(prev => ({ ...prev, language: newLang }));
-  };
-
-  const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-    }
-  };
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-
-    if (password.length < 6) {
-      setAuthError(t.passwordMinLength);
-      setAuthLoading(false);
-      return;
-    }
-
-    try {
-      if (authMode === 'signUp') {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (name.trim()) {
-          await updateProfile(userCredential.user, {
-            displayName: name.trim()
-          });
-        }
-        setUser({ ...userCredential.user, displayName: name.trim() || userCredential.user.displayName });
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-      setEmail('');
-      setPassword('');
-      setName('');
-      setIsAuthModalOpen(false);
-    } catch (error: any) {
-      console.error("Auth error:", error);
-      let errMsg = error.message;
-      if (error.code === 'auth/email-already-in-use') {
-        errMsg = lang === 'ko' ? '이미 사용 중인 이메일입니다.' : 'This email is already in use.';
-      } else if (error.code === 'auth/invalid-email') {
-        errMsg = lang === 'ko' ? '올바르지 않은 이메일 형식입니다.' : 'Invalid email address.';
-      } else if (error.code === 'auth/weak-password') {
-        errMsg = lang === 'ko' ? '비밀번호가 너무 취약합니다.' : 'The password is too weak.';
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errMsg = lang === 'ko' ? '이메일 또는 비밀번호가 올바르지 않습니다.' : 'Invalid email or password.';
-      }
-      setAuthError(errMsg);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignOut = () => {
-    signOut(auth);
   };
 
   const submitProfile = async (e: React.FormEvent) => {
@@ -149,22 +75,21 @@ export default function App() {
 
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return alert("Please sign in to leave a review.");
     if (!newReview.destination || !newReview.comment) return alert("Please fill all fields.");
 
     try {
       await addDoc(collection(db, 'reviews'), {
-        userId: user.uid,
-        userName: user.displayName || 'Anonymous',
+        userId: 'anonymous',
+        userName: newReview.userName.trim() || 'Anonymous',
         destination: newReview.destination,
         rating: newReview.rating,
         comment: newReview.comment,
         createdAt: Date.now()
       });
-      setNewReview({ destination: '', comment: '', rating: 5 });
+      setNewReview({ userName: '', destination: '', comment: '', rating: 5 });
     } catch (error) {
       console.error("Error adding review:", error);
-      alert("Failed to add review. Make sure you are signed in.");
+      alert("Failed to add review.");
     }
   };
 
@@ -193,33 +118,6 @@ export default function App() {
                 <option value="de" className="text-black">Deutsch</option>
               </select>
             </div>
-
-            {user ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-white hidden sm:inline-block drop-shadow-md">
-                  {user.displayName}
-                </span>
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20 rounded-full transition-colors backdrop-blur-sm border border-white/20"
-                >
-                  <LogOut className="w-4 h-4" />
-                  {t.signOut}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setAuthMode('signIn');
-                  setAuthError('');
-                  setIsAuthModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-full transition-colors shadow-sm"
-              >
-                <LogIn className="w-4 h-4" />
-                {t.signIn}
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -422,19 +320,28 @@ export default function App() {
             <div className="lg:col-span-1">
               <div className="bg-neutral-50 rounded-2xl p-6 border border-neutral-200 sticky top-24">
                 <h3 className="font-bold text-lg text-neutral-900 mb-6">{t.shareExperience}</h3>
-                {user ? (
-                  <form onSubmit={submitReview} className="space-y-5">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-neutral-700">{t.destination}</label>
-                      <input
-                        type="text"
-                        placeholder={t.destinationPlaceholder}
-                        value={newReview.destination}
-                        onChange={e => setNewReview({ ...newReview, destination: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-rose-500 outline-none bg-white transition-shadow"
-                        required
-                      />
-                    </div>
+                <form onSubmit={submitReview} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-neutral-700">이름 / Name</label>
+                    <input
+                      type="text"
+                      placeholder="익명 / Anonymous"
+                      value={newReview.userName}
+                      onChange={e => setNewReview({ ...newReview, userName: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-rose-500 outline-none bg-white transition-shadow"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-neutral-700">{t.destination}</label>
+                    <input
+                      type="text"
+                      placeholder={t.destinationPlaceholder}
+                      value={newReview.destination}
+                      onChange={e => setNewReview({ ...newReview, destination: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-rose-500 outline-none bg-white transition-shadow"
+                      required
+                    />
+                  </div>
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-neutral-700">{t.rating}</label>
                       <div className="flex gap-2">
@@ -468,24 +375,6 @@ export default function App() {
                       {t.postReview}
                     </button>
                   </form>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <LogIn className="w-8 h-8 text-rose-500" />
-                    </div>
-                    <p className="text-sm text-neutral-500 mb-6">{t.signInToReview}</p>
-                    <button
-                      onClick={() => {
-                        setAuthMode('signIn');
-                        setAuthError('');
-                        setIsAuthModalOpen(true);
-                      }}
-                      className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-full transition-colors shadow-md"
-                    >
-                      {t.signIn}
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -517,164 +406,6 @@ export default function App() {
           </div>
         </section>
       </main>
-
-      {/* Auth Modal */}
-      <AnimatePresence>
-        {isAuthModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsAuthModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/60 backdrop-blur-md"
-            />
-
-            {/* Modal Box */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-neutral-100 z-10 overflow-hidden"
-            >
-              {/* Close button */}
-              <button
-                onClick={() => setIsAuthModalOpen(false)}
-                className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-600 rounded-full hover:bg-neutral-50 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-rose-500">
-                  <Plane className="w-6 h-6 animate-pulse" />
-                </div>
-                <h3 className="text-2xl font-bold font-display text-neutral-900">
-                  {authMode === 'signIn' ? t.signIn : t.signUp}
-                </h3>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-neutral-100 mb-6">
-                <button
-                  type="button"
-                  onClick={() => { setAuthMode('signIn'); setAuthError(''); }}
-                  className={`flex-1 pb-3 text-sm font-semibold transition-colors relative ${authMode === 'signIn' ? 'text-rose-600' : 'text-neutral-400 hover:text-neutral-600'}`}
-                >
-                  {t.signIn}
-                  {authMode === 'signIn' && (
-                    <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAuthMode('signUp'); setAuthError(''); }}
-                  className={`flex-1 pb-3 text-sm font-semibold transition-colors relative ${authMode === 'signUp' ? 'text-rose-600' : 'text-neutral-400 hover:text-neutral-600'}`}
-                >
-                  {t.signUp}
-                  {authMode === 'signUp' && (
-                    <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600" />
-                  )}
-                </button>
-              </div>
-
-              {authError && (
-                <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-semibold leading-relaxed">
-                  {authError}
-                </div>
-              )}
-
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                {authMode === 'signUp' && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-neutral-700">{t.name}</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. John Doe"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-2.5 text-sm bg-neutral-50 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-neutral-900"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-neutral-700">{t.email}</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm bg-neutral-50 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-neutral-900"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-neutral-700">{t.password}</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm bg-neutral-50 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-neutral-900"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full py-3 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 mt-6"
-                >
-                  {authLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    authMode === 'signIn' ? t.signIn : t.signUp
-                  )}
-                </button>
-              </form>
-
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-neutral-100"></div>
-                <span className="flex-shrink mx-4 text-neutral-400 text-xs font-medium uppercase tracking-wider">or</span>
-                <div className="flex-grow border-t border-neutral-100"></div>
-              </div>
-
-              {/* Google Sign In */}
-              <button
-                onClick={handleGoogleSignIn}
-                type="button"
-                className="w-full py-3 border border-neutral-200 hover:bg-neutral-50 rounded-xl font-semibold text-sm text-neutral-700 flex items-center justify-center gap-2.5 transition-colors shadow-sm"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                {lang === 'ko' ? 'Google로 계속하기' : 'Continue with Google'}
-              </button>
-
-              <div className="text-center mt-6 text-xs text-neutral-500">
-                <button
-                  onClick={() => {
-                    setAuthMode(authMode === 'signIn' ? 'signUp' : 'signIn');
-                    setAuthError('');
-                  }}
-                  className="hover:underline font-semibold text-rose-600 transition-all"
-                >
-                  {authMode === 'signIn' ? t.dontHaveAccount : t.alreadyHaveAccount}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
