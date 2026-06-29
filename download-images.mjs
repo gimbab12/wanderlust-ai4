@@ -21,6 +21,7 @@ function download(url, dest) {
 
 async function main() {
   try {
+    await download('https://placehold.co/32x32/png?text=Icon', './public/favicon.ico');
     await download('https://placehold.co/192x192/png?text=Icon', './public/icon-192x192.png');
     await download('https://placehold.co/512x512/png?text=Icon', './public/icon-512x512.png');
     await download('https://placehold.co/1280x720/png?text=Desktop', './public/screenshot-desktop.png');
