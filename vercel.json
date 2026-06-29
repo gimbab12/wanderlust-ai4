@@ -1,6 +1,13 @@
 {
-  "name": "Travel AI Navigator",
-  "description": "An AI-powered travel recommendation and review platform based on personality, budget, and preferences.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
