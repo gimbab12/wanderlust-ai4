@@ -3,18 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
-let ai: GoogleGenAI | null = null;
-
-function getAIClient() {
-  if (!ai) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is missing.");
-    }
-    ai = new GoogleGenAI({ apiKey });
-  }
-  return ai;
-}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 async function startServer() {
   const app = express();
@@ -25,7 +14,6 @@ async function startServer() {
   // API Route for Gemini Recommendations
   app.post("/api/recommend", async (req, res) => {
     try {
-      const aiClient = getAIClient();
       const { age, gender, mbti, preferredRegion, crowdPreference, budgetPreference, totalBudget, transportation, language } = req.body;
 
       if (age === '' || age === undefined || !gender || !preferredRegion || !crowdPreference || !budgetPreference || totalBudget === '' || totalBudget === undefined || !transportation || !language) {
@@ -61,7 +49,7 @@ CRITICAL INSTRUCTION: You MUST output the ENTIRE response in the following langu
 Output the response in clean Markdown format. Be specific and realistic regarding costs.
 `;
 
-      const response = await aiClient.models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
       });
@@ -69,7 +57,7 @@ Output the response in clean Markdown format. Be specific and realistic regardin
       res.json({ recommendation: response.text });
     } catch (error) {
       console.error("Gemini API Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to generate recommendations." });
+      res.status(500).json({ error: "Failed to generate recommendations." });
     }
   });
 
