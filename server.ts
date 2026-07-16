@@ -3,13 +3,39 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiClient: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY가 서버 환경변수에 설정되어 있지 않습니다.");
+    }
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+  return aiClient;
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // CORS Middleware to allow requests from Capacitor/Android WebView
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
+  });
 
   // API Route for Gemini Recommendations
   app.post("/api/recommend", async (req, res) => {
@@ -49,15 +75,18 @@ CRITICAL INSTRUCTION: You MUST output the ENTIRE response in the following langu
 Output the response in clean Markdown format. Be specific and realistic regarding costs.
 `;
 
+      const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
       });
 
       res.json({ recommendation: response.text });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini API Error:", error);
-      res.status(500).json({ error: "Failed to generate recommendations." });
+      res.status(500).json({ 
+        error: error.message || "Failed to generate recommendations." 
+      });
     }
   });
 
