@@ -130,12 +130,13 @@ export default function App() {
   // States
   const [recommendation, setRecommendation] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [recommendError, setRecommendError] = useState<string>('');
 
   // API connection settings states
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [apiMode, setApiMode] = useState<string>(() => localStorage.getItem('api_mode') || 'auto');
   const [apiCustomUrl, setApiCustomUrl] = useState<string>(() => localStorage.getItem('api_custom_url') || 'http://192.168.0.5:3000');
-  const [adsenseClient, setAdsenseClient] = useState<string>(() => localStorage.getItem('adsense_client') || 'ca-pub-8139972389007359');
+  const [adsenseClient, setAdsenseClient] = useState<string>(() => localStorage.getItem('adsense_client') || 'ca-pub-8139972839007359');
   const [adsenseSlot, setAdsenseSlot] = useState<string>(() => localStorage.getItem('adsense_slot') || '2141105845');
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState<boolean>(false);
@@ -256,6 +257,7 @@ export default function App() {
     e.preventDefault();
     setLoading(true);
     setRecommendation('');
+    setRecommendError('');
     try {
       const response = await fetch(getApiUrl('/api/recommend'), {
         method: 'POST',
@@ -267,11 +269,11 @@ export default function App() {
       if (response.ok) {
         setRecommendation(data.recommendation);
       } else {
-        alert("Failed to get recommendations: " + data.error);
+        setRecommendError(data.error || "Failed to get recommendations.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error:", error);
-      alert("An error occurred while fetching recommendations.");
+      setRecommendError(error.message || "An error occurred while fetching recommendations.");
     } finally {
       setLoading(false);
     }
@@ -682,6 +684,32 @@ export default function App() {
                       <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* AI Recommendation Error Display */}
+              <AnimatePresence>
+                {recommendError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    className="p-4 pt-0"
+                  >
+                    <div className="bg-rose-50 border border-rose-100 rounded-3xl p-5 flex flex-col gap-3 shadow-sm">
+                      <div className="flex gap-3 items-start">
+                        <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-xs font-black text-rose-800 leading-none mb-1.5">
+                            {isKo ? '추천 오류 발생' : 'Recommendation Error'}
+                          </h4>
+                          <p className="text-[11px] text-rose-700/90 leading-relaxed font-semibold">
+                            {recommendError}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}

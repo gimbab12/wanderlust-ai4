@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, DollarSign } from 'lucide-react';
+import { Sparkles, DollarSign, ExternalLink, Info } from 'lucide-react';
 
 interface AdSenseAdProps {
   slot?: string;
@@ -26,15 +26,27 @@ export default function AdSenseAd({
   const [hasError, setHasError] = useState(false);
 
   // Fallback values from environment variables, localStorage, or direct parameters
-  const adClient = client || localStorage.getItem('adsense_client') || (import.meta as any).env.VITE_ADSENSE_CLIENT || 'ca-pub-8139972389007359';
+  const adClient = client || localStorage.getItem('adsense_client') || (import.meta as any).env.VITE_ADSENSE_CLIENT || 'ca-pub-8139972839007359';
   const adSlot = slot || localStorage.getItem('adsense_slot') || (import.meta as any).env.VITE_ADSENSE_SLOT || '2141105845';
 
   const isRealConfig = adClient && adClient.startsWith('ca-pub-') && adSlot && !adClient.includes('~');
 
+  // AdSense does not load in local development, sandboxes, or iframes because of domain authorization.
+  // We detect this to show a gorgeous high-fidelity preview instead of a broken blank space.
+  const isLocalOrSandbox = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.run.app') ||
+    window.location.hostname.includes('aistudio') ||
+    window.self !== window.top
+  );
+
   useEffect(() => {
-    if (!isRealConfig) {
+    if (!isRealConfig || isLocalOrSandbox) {
       return;
     }
+
+    let timeoutId: any;
 
     try {
       // 1. Dynamic injection of AdSense script if it hasn't been added yet
@@ -50,33 +62,39 @@ export default function AdSenseAd({
         document.head.appendChild(script);
       }
 
-      // 2. Initialize the specific ad instance
-      if (window.adsbygoogle) {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-        setIsAdLoaded(true);
-      } else {
-        const handleScriptLoad = () => {
-          try {
-            (window.adsbygoogle = window.adsbygoogle || []).push({});
-            setIsAdLoaded(true);
-          } catch (err) {
-            console.error("AdSense push inner error:", err);
-            setHasError(true);
+      // 2. Initialize the specific ad instance with safety checks and delay
+      const initializeAd = () => {
+        try {
+          if (window.adsbygoogle) {
+            // Check if there's an uninitialized adsbygoogle ins element in the DOM
+            // to prevent calling push() more times than physical ins elements exist
+            const uninitializedAds = document.querySelectorAll('ins.adsbygoogle:not([data-adsbygoogle-status="done"])');
+            if (uninitializedAds.length > 0) {
+              (window.adsbygoogle = window.adsbygoogle || []).push({});
+              setIsAdLoaded(true);
+            }
           }
-        };
-        script.addEventListener('load', handleScriptLoad);
-        return () => {
-          script.removeEventListener('load', handleScriptLoad);
-        };
-      }
+        } catch (err) {
+          console.warn("AdSense push inner warning (safe fallback):", err);
+          setHasError(true);
+        }
+      };
+
+      // Add a brief timeout to let the React DOM fully settle before triggering AdSense
+      timeoutId = setTimeout(initializeAd, 100);
+
     } catch (error) {
-      console.error('Error initializing Google AdSense:', error);
+      console.warn('Error initializing Google AdSense safely:', error);
       setHasError(true);
     }
-  }, [adClient, adSlot, isRealConfig]);
 
-  // If we are in preview mode or don't have valid real production AdSense configured, show a high-fidelity mock banner
-  if (!isRealConfig || hasError) {
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [adClient, adSlot, isRealConfig, isLocalOrSandbox]);
+
+  // If in local/sandbox mode, show a high-fidelity visual mock ad with live config data
+  if (!isRealConfig || isLocalOrSandbox || hasError) {
     return (
       <div className={`p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 flex flex-col relative overflow-hidden group ${className}`}>
         {/* Glow Effects */}
@@ -93,8 +111,8 @@ export default function AdSenseAd({
               <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
             </span>
           </div>
-          <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-md">
-            AdSense Web Banner
+          <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+            <Info className="w-2.5 h-2.5" /> AdSense Preview
           </span>
         </div>
         
@@ -112,12 +130,15 @@ export default function AdSenseAd({
             <span>Ad Slot:</span>
             <span className="font-semibold text-amber-600 font-bold">{adSlot}</span>
           </div>
+          <div className="mt-1 text-[8px] text-amber-700/80 italic">
+            * Sandbox Preview Mode: Real ads display on authorized domains.
+          </div>
         </div>
       </div>
     );
   }
 
-  // Real Google AdSense Container
+  // Real Google AdSense Container (rendered in authorized production domain environments)
   return (
     <div className={`my-4 w-full overflow-hidden flex justify-center items-center ${className}`}>
       <ins

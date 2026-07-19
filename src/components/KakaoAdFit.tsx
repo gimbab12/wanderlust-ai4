@@ -8,9 +8,9 @@ interface KakaoAdFitProps {
 }
 
 export function KakaoAdFit({ 
-  unitId = 'DAN-AcDdlsTOoWUakNI3', 
+  unitId = 'DAN-NGAfHzTd4HK6donL', 
   width = '320', 
-  height = '50',
+  height = '100',
   className = ''
 }: KakaoAdFitProps) {
   const adRef = useRef<boolean>(false);

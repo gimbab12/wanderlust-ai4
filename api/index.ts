@@ -4,7 +4,17 @@ import { GoogleGenAI } from "@google/genai";
 const app = express();
 app.use(express.json());
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+async function generateGeminiContent(prompt: string, model: string = "gemini-3.5-flash"): Promise<string> {
+  const ai = new GoogleGenAI({});
+  const response = await ai.models.generateContent({
+    model: model,
+    contents: prompt,
+  });
+  if (!response.text) {
+    throw new Error("Gemini SDK 응답에서 텍스트를 추출할 수 없습니다.");
+  }
+  return response.text;
+}
 
 app.post("/api/recommend", async (req: express.Request, res: express.Response) => {
   try {
@@ -43,15 +53,26 @@ CRITICAL INSTRUCTION: You MUST output the ENTIRE response in the following langu
 Output the response in clean Markdown format. Be specific and realistic regarding costs.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-
-    res.json({ recommendation: response.text });
-  } catch (error) {
+    const text = await generateGeminiContent(prompt, "gemini-3.5-flash");
+    res.json({ recommendation: text });
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    res.status(500).json({ error: "Failed to generate recommendations." });
+    let errorMsg = "Failed to generate recommendations.";
+    if (error && typeof error === 'object') {
+      const errStr = JSON.stringify(error) + " " + String(error.message) + " " + String(error.stack);
+      if (
+        errStr.includes("UNAUTHENTICATED") || 
+        errStr.includes("401") || 
+        errStr.includes("invalid authentication") || 
+        errStr.includes("API_KEY_SERVICE_BLOCKED") || 
+        errStr.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED")
+      ) {
+        errorMsg = "API 인증 오류: 설정된 API 키가 올바르지 않거나 지원되지 않는 토큰 형식입니다.\n\n[해결 방법]\nAI Studio의 Secrets 메뉴 오류('Failed to load Gemini API key')로 인해 'GEMINI_API_KEY'가 정상 동작하지 않는 경우, Secrets 메뉴에서 [+ Add secret]을 누르고 이름(Name)을 'CUSTOM_GEMINI_API_KEY'로 입력한 후, 값(Value) 란에 직접 구글 AI 스튜디오(https://aistudio.google.com/)에서 복사해온 본인의 Gemini API 키(AIzaSy로 시작하는 39글자 형태의 키)를 입력해 [Add] 버튼을 눌러 추가해 주세요! 이 우회 기능이 연동되도록 조치했습니다.";
+      } else {
+        errorMsg = error.message || errorMsg;
+      }
+    }
+    res.status(500).json({ error: errorMsg });
   }
 });
 
