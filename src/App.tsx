@@ -303,6 +303,19 @@ export default function App() {
     }
   };
 
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'Wanderlust',
+        text: isKo ? '나만의 맞춤형 여행 코스 추천' : 'Personalized AI Travel Curator',
+        url: window.location.href,
+      }).catch((err) => console.error('Share error:', err));
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert(isKo ? '링크가 복사되었습니다.' : 'Link copied to clipboard.');
+    }
+  };
+
   return (
     <PhoneContainer>
       {/* Dynamic Header */}
@@ -321,6 +334,15 @@ export default function App() {
 
         {/* Header Right Action Area */}
         <div className="flex items-center gap-2">
+          {/* Share Button */}
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition-all active:scale-95"
+            title={isKo ? "공유하기" : "Share"}
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+
           {/* App Install Trigger Button */}
           <button
             onClick={() => setIsInstallModalOpen(true)}
@@ -752,12 +774,15 @@ export default function App() {
                       <div className="markdown-body text-xs text-neutral-800 leading-relaxed font-normal prose prose-neutral max-w-none prose-p:my-2 prose-h1:text-sm prose-h1:font-black prose-h2:text-xs prose-h2:font-black prose-h3:text-xs prose-li:my-0.5">
                         <ReactMarkdown>{recommendation}</ReactMarkdown>
                       </div>
-
-                      <AdBanner />
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Mobile Top Ad */}
+              <div className="md:hidden px-4">
+                <AdBanner />
+              </div>
             </motion.div>
           )}
 
@@ -836,7 +861,10 @@ export default function App() {
                 </div>
               )}
 
-              <AdBanner />
+              {/* Mobile Top Ad */}
+              <div className="md:hidden px-4 mt-4">
+                <AdBanner />
+              </div>
 
               {/* Floating Action Button (FAB) to write review */}
               <motion.button
